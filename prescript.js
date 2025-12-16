@@ -8,9 +8,7 @@ if (!crypto.randomUUID) {
 }
 
 (function() {
-  var o = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  var r = localStorage.getItem("theme") ?? o;
-  document.documentElement.setAttribute("saved-theme", r);
+  document.documentElement.setAttribute("saved-theme", "dark");
   var a = t => {
     let n = new CustomEvent("themechange", {
       detail: {
@@ -20,6 +18,8 @@ if (!crypto.randomUUID) {
     document.dispatchEvent(n);
   };
   document.addEventListener("nav", () => {
+    // All theme switching logic is commented out to force dark mode.
+    /*
     let t = c => {
       let e = document.documentElement.getAttribute("saved-theme") === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("saved-theme", e), localStorage.setItem("theme", e), a(e);
@@ -30,5 +30,6 @@ if (!crypto.randomUUID) {
     d && (d.addEventListener("click", t), window.addCleanup(() => d.removeEventListener("click", t)));
     let m = window.matchMedia("(prefers-color-scheme: dark)");
     m.addEventListener("change", n), window.addCleanup(() => m.removeEventListener("change", n));
+    */
   });
 })();
