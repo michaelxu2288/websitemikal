@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUMON OS - Dual Shell</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --lumon-bg: #0a0e14;
+            --lumon-panel: #111820;
+            --lumon-border: #1e2a38;
+            --lumon-blue: #00d4ff;
+            --lumon-green: #00ff88;
+            --lumon-amber: #ffaa00;
+            --lumon-text: #c5d0de;
+            --lumon-dim: #5c6a7a;
+            --lumon-error: #ff4757;
+            --lumon-glow: rgba(0, 212, 255, 0.15);
+            --scanline-opacity: 0.03;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: var(--lumon-bg);
+            color: var(--lumon-text);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* CRT Scanline Effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, var(--scanline-opacity)) 2px,
+                rgba(0, 0, 0, var(--scanline-opacity)) 4px
+            );
+            z-index: 9999;
+        }
+
+        /* Subtle CRT flicker */
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.98; }
+            94% { opacity: 1; }
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            animation: flicker 8s infinite;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(180deg, var(--lumon-panel) 0%, var(--lumon-bg) 100%);
+            border-bottom: 1px solid var(--lumon-border);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--lumon-blue);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--lumon-bg);
+            font-size: 18px;
+            box-shadow: 0 0 20px var(--lumon-glow);
+        }
+
+        .logo-text {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: var(--lumon-text);
+        }
+
+        .logo-text span {
+            color: var(--lumon-blue);
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            color: var(--lumon-dim);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--lumon-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--lumon-green); }
+            50% { opacity: 0.6; box-shadow: 0 0 8px var(--lumon-green); }
+        }
+
+        /* Main Terminal Area */
+        .terminals {
+            display: flex;
+            flex: 1;
+            gap: 2px;
+            padding: 16px;
+            background: var(--lumon-bg);
+        }
+
+        .terminal-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--lumon-panel);
+            border: 1px solid var(--lumon-border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 
+                0 4px 24px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+
+        .terminal-wrapper.active {
+            border-color: var(--lumon-blue);
+            box-shadow: 
+                0 4px 24px rgba(0, 0, 0, 0.4),
+                0 0 0 1px var(--lumon-blue),
+                0 0 30px var(--lumon-glow),
+                inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+
+        .terminal-header {
+            background: linear-gradient(180deg, #1a2433 0%, var(--lumon-panel) 100%);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--lumon-border);
+        }
+
+        .terminal-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--lumon-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-title::before {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: var(--lumon-green);
+            border-radius: 2px;
+        }
+
+        .terminal-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .terminal-btn.close { background: #ff5f56; }
+        .terminal-btn.minimize { background: #ffbd2e; }
+        .terminal-btn.maximize { background: #27ca40; }
+
+        .terminal-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+            background: 
+                radial-gradient(ellipse at center, rgba(0, 212, 255, 0.02) 0%, transparent 70%),
+                var(--lumon-panel);
+        }
+
+        .terminal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-body::-webkit-scrollbar-track {
+            background: var(--lumon-bg);
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: var(--lumon-border);
+            border-radius: 4px;
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb:hover {
+            background: var(--lumon-dim);
+        }
+
+        .output-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .output-line.system {
+            color: var(--lumon-blue);
+        }
+
+        .output-line.error {
+            color: var(--lumon-error);
+        }
+
+        .output-line.success {
+            color: var(--lumon-green);
+        }
+
+        .output-line.info {
+            color: var(--lumon-amber);
+        }
+
+        .input-line {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .prompt {
+            color: var(--lumon-green);
+            font-weight: 600;
+            margin-right: 8px;
+            white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+
+        .command-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--lumon-text);
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+            caret-color: var(--lumon-blue);
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: var(--lumon-blue);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--lumon-panel);
+            border-top: 1px solid var(--lumon-border);
+            padding: 12px 32px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--lumon-dim);
+        }
+
+        .help-hint {
+            display: flex;
+            gap: 16px;
+        }
+
+        .help-hint kbd {
+            background: var(--lumon-bg);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--lumon-border);
+            font-family: inherit;
+            color: var(--lumon-text);
+        }
+
+        /* Boot animation */
+        @keyframes bootUp {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .boot-line {
+            animation: bootUp 0.3s ease-out forwards;
+            opacity: 0;
+        }
+
+        /* File listing styles */
+        .file-entry {
+            color: var(--lumon-amber);
+        }
+
+        .dir-entry {
+            color: var(--lumon-blue);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">L</div>
+                <div class="logo-text">LUMON <span>OS</span></div>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-dot"></div>
+                    <span>SYSTEM ACTIVE</span>
+                </div>
+                <div class="status-item" id="clock">--:--:--</div>
+            </div>
+        </header>
+
+        <main class="terminals">
+            <div class="terminal-wrapper" id="terminal-1">
+                <div class="terminal-header">
+                    <div class="terminal-title">TERMINAL 1 — INNIE</div>
+                    <div class="terminal-actions">
+                        <button class="terminal-btn minimize"></button>
+                        <button class="terminal-btn maximize"></button>
+                        <button class="terminal-btn close"></button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="output-1"></div>
+            </div>
+            <div class="terminal-wrapper" id="terminal-2">
+                <div class="terminal-header">
+                    <div class="terminal-title">TERMINAL 2 — OUTIE</div>
+                    <div class="terminal-actions">
+                        <button class="terminal-btn minimize"></button>
+                        <button class="terminal-btn maximize"></button>
+                        <button class="terminal-btn close"></button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="output-2"></div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <div class="help-hint">
+                <span><kbd>Tab</kbd> Switch terminal</span>
+                <span><kbd>help</kbd> List commands</span>
+                <span><kbd>clear</kbd> Clear screen</span>
+            </div>
+            <div>LUMON INDUSTRIES © 2025 | Macrodata Refinement Division</div>
+        </footer>
+    </div>
+
+    <script>
+        // ============================================
+        // LUMON OS - Dual Shell Implementation
+        // ============================================
+
+        // Virtual File System
+        class FileSystem {
+            constructor() {
+                this.files = new Map();
+                this.initDefaultFiles();
+            }
+
+            initDefaultFiles() {
+                // Default files in the system
+                this.files.set('c/readme.txt', 'Welcome to LUMON OS\nYour work is mysterious and important.\n');
+                this.files.set('c/handbook.txt', 'LUMON EMPLOYEE HANDBOOK\n========================\n\n1. Your outie is not your friend.\n2. The work is mysterious and important.\n3. Trust in the process.\n4. Compliance is rewarded.\n');
+                this.files.set('c/numbers.txt', '42\n17\n99\n256\n1024\n');
+                this.files.set('c/memo.txt', 'TO: All Severed Employees\nFROM: Management\n\nPlease enjoy the waffle party.\n');
+                this.files.set('dev/uart1', '[DEVICE: UART Console]');
+                this.files.set('dev/rtc0', '[DEVICE: Real Time Clock]');
+            }
+
+            exists(path) {
+                const normalized = this.normalizePath(path);
+                return this.files.has(normalized);
+            }
+
+            read(path) {
+                const normalized = this.normalizePath(path);
+                if (this.files.has(normalized)) {
+                    return this.files.get(normalized);
+                }
+                return null;
+            }
+
+            write(path, content) {
+                const normalized = this.normalizePath(path);
+                this.files.set(normalized, content);
+            }
+
+            delete(path) {
+                const normalized = this.normalizePath(path);
+                return this.files.delete(normalized);
+            }
+
+            create(path) {
+                const normalized = this.normalizePath(path);
+                if (!this.files.has(normalized)) {
+                    this.files.set(normalized, '');
+                    return true;
+                }
+                return false;
+            }
+
+            list(dir = '/') {
+                const results = [];
+                const prefix = dir === '/' ? '' : this.normalizePath(dir) + '/';
+                
+                if (dir === '/') {
+                    results.push({ name: 'c', type: 'dir' });
+                    results.push({ name: 'dev', type: 'dir' });
+                    return results;
+                }
+
+                const seen = new Set();
+                for (const path of this.files.keys()) {
+                    if (prefix && !path.startsWith(prefix)) continue;
+                    if (!prefix && !path.startsWith('c/') && !path.startsWith('dev/')) continue;
+                    
+                    const rest = prefix ? path.slice(prefix.length) : path.split('/')[1];
+                    const name = rest.split('/')[0];
+                    
+                    if (!seen.has(name)) {
+                        seen.add(name);
+                        const isDir = rest.includes('/');
+                        results.push({ name, type: isDir ? 'dir' : 'file' });
+                    }
+                }
+
+                // For 'c' and 'dev' directories
+                if (dir === 'c' || dir === 'c/') {
+                    results.length = 0;
+                    for (const path of this.files.keys()) {
+                        if (path.startsWith('c/')) {
+                            const name = path.slice(2);
+                            if (!name.includes('/')) {
+                                results.push({ name, type: 'file' });
+                            }
+                        }
+                    }
+                }
+                
+                if (dir === 'dev' || dir === 'dev/') {
+                    results.length = 0;
+                    for (const path of this.files.keys()) {
+                        if (path.startsWith('dev/')) {
+                            const name = path.slice(4);
+                            if (!name.includes('/')) {
+                                results.push({ name, type: 'device' });
+                            }
+                        }
+                    }
+                }
+
+                return results;
+            }
+
+            normalizePath(path) {
+                // Remove leading slash and trailing slash
+                let normalized = path.replace(/^\/+/, '').replace(/\/+$/, '');
+                // Handle 'c/' prefix for files
+                if (!normalized.startsWith('c/') && !normalized.startsWith('dev/') && !normalized.includes('/')) {
+                    // Assume it's in the c/ directory
+                    if (normalized !== 'c' && normalized !== 'dev') {
+                        normalized = 'c/' + normalized;
+                    }
+                }
+                return normalized;
+            }
+        }
+
+        // Command Parser
+        class CommandParser {
+            parse(input) {
+                const result = {
+                    commands: [],
+                    inputFile: null,
+                    outputFile: null,
+                    error: null
+                };
+
+                // Handle empty input
+                if (!input.trim()) {
+                    return result;
+                }
+
+                // Check for pipe
+                const pipeIndex = input.indexOf('|');
+                let segments = pipeIndex >= 0 ? [input.slice(0, pipeIndex), input.slice(pipeIndex + 1)] : [input];
+
+                for (let i = 0; i < segments.length; i++) {
+                    let segment = segments[i].trim();
+                    let args = [];
+                    
+                    // Handle input redirection (only for first command)
+                    if (i === 0) {
+                        const inputMatch = segment.match(/<\s*(\S+)/);
+                        if (inputMatch) {
+                            result.inputFile = inputMatch[1];
+                            segment = segment.replace(/<\s*\S+/, '').trim();
+                        }
+                    }
+
+                    // Handle output redirection (only for last command)
+                    if (i === segments.length - 1) {
+                        const outputMatch = segment.match(/>\s*(\S+)/);
+                        if (outputMatch) {
+                            result.outputFile = outputMatch[1];
+                            segment = segment.replace(/>\s*\S+/, '').trim();
+                        }
+                    }
+
+                    // Parse arguments
+                    args = segment.split(/\s+/).filter(a => a.length > 0);
+                    
+                    if (args.length > 0) {
+                        result.commands.push({
+                            cmd: args[0],
+                            args: args.slice(1)
+                        });
+                    }
+                }
+
+                return result;
+            }
+        }
+
+        // Shell Implementation
+        class Shell {
+            constructor(terminalId, fs) {
+                this.terminalId = terminalId;
+                this.fs = fs;
+                this.parser = new CommandParser();
+                this.outputEl = document.getElementById(`output-${terminalId}`);
+                this.history = [];
+                this.historyIndex = -1;
+                this.currentInput = '';
+                this.inputEl = null;
+                
+                this.commands = {
+                    'help': this.cmdHelp.bind(this),
+                    'ls': this.cmdLs.bind(this),
+                    'cat': this.cmdCat.bind(this),
+                    'echo': this.cmdEcho.bind(this),
+                    'touch': this.cmdTouch.bind(this),
+                    'rm': this.cmdRm.bind(this),
+                    'wc': this.cmdWc.bind(this),
+                    'date': this.cmdDate.bind(this),
+                    'hello': this.cmdHello.bind(this),
+                    'clear': this.cmdClear.bind(this),
+                    'exit': this.cmdExit.bind(this),
+                };
+
+                this.init();
+            }
+
+            init() {
+                this.printBoot();
+            }
+
+            printBoot() {
+                const bootMessages = [
+                    { text: 'Starting 391 Shell', class: 'system' },
+                    { text: 'LUMON Industries Macrodata Refinement Terminal', class: 'info' },
+                    { text: '═══════════════════════════════════════════════', class: 'dim' },
+                    { text: '', class: '' }
+                ];
+
+                bootMessages.forEach((msg, i) => {
+                    setTimeout(() => {
+                        if (msg.text) {
+                            this.print(msg.text, msg.class);
+                        }
+                        if (i === bootMessages.length - 1) {
+                            this.showPrompt();
+                        }
+                    }, i * 100);
+                });
+            }
+
+            print(text, className = '') {
+                const line = document.createElement('div');
+                line.className = `output-line ${className}`;
+                line.textContent = text;
+                this.outputEl.appendChild(line);
+                this.scrollToBottom();
+            }
+
+            printHtml(html, className = '') {
+                const line = document.createElement('div');
+                line.className = `output-line ${className}`;
+                line.innerHTML = html;
+                this.outputEl.appendChild(line);
+                this.scrollToBottom();
+            }
+
+            scrollToBottom() {
+                this.outputEl.scrollTop = this.outputEl.scrollHeight;
+            }
+
+            showPrompt() {
+                const inputLine = document.createElement('div');
+                inputLine.className = 'input-line';
+                inputLine.innerHTML = `
+                    <span class="prompt">LUMON OS&gt;</span>
+                    <input type="text" class="command-input" autofocus>
+                    <span class="cursor"></span>
+                `;
+                this.outputEl.appendChild(inputLine);
+                
+                this.inputEl = inputLine.querySelector('.command-input');
+                this.inputEl.addEventListener('keydown', this.handleKeyDown.bind(this));
+                this.inputEl.addEventListener('input', this.handleInput.bind(this));
+                this.inputEl.focus();
+                this.scrollToBottom();
+            }
+
+            handleInput(e) {
+                // Hide cursor when there's input
+                const cursor = this.inputEl.parentElement.querySelector('.cursor');
+                cursor.style.display = this.inputEl.value ? 'none' : 'inline-block';
+            }
+
+            handleKeyDown(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const command = this.inputEl.value;
+                    this.executeCommand(command);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateHistory(-1);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateHistory(1);
+                } else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    // Switch to other terminal
+                    const otherTerminal = this.terminalId === 1 ? 2 : 1;
+                    shells[otherTerminal].focus();
+                }
+            }
+
+            navigateHistory(direction) {
+                if (this.history.length === 0) return;
+                
+                this.historyIndex += direction;
+                
+                if (this.historyIndex < 0) {
+                    this.historyIndex = 0;
+                } else if (this.historyIndex >= this.history.length) {
+                    this.historyIndex = this.history.length;
+                    this.inputEl.value = this.currentInput;
+                    return;
+                }
+                
+                this.inputEl.value = this.history[this.historyIndex];
+            }
+
+            focus() {
+                if (this.inputEl) {
+                    this.inputEl.focus();
+                }
+                // Update active state
+                document.querySelectorAll('.terminal-wrapper').forEach(el => {
+                    el.classList.remove('active');
+                });
+                document.getElementById(`terminal-${this.terminalId}`).classList.add('active');
+            }
+
+            executeCommand(input) {
+                // Freeze the input line
+                const inputLine = this.inputEl.parentElement;
+                inputLine.innerHTML = `<span class="prompt">LUMON OS&gt;</span><span>${this.escapeHtml(input)}</span>`;
+                
+                if (input.trim()) {
+                    this.history.push(input);
+                    this.historyIndex = this.history.length;
+                }
+
+                const parsed = this.parser.parse(input);
+
+                if (parsed.commands.length === 0) {
+                    // Handle empty command with output redirect
+                    if (parsed.outputFile) {
+                        this.fs.delete(parsed.outputFile);
+                        this.fs.create(parsed.outputFile);
+                    }
+                    this.showPrompt();
+                    return;
+                }
+
+                // Execute commands
+                let output = '';
+                let inputData = '';
+
+                // Read input file if specified
+                if (parsed.inputFile) {
+                    inputData = this.fs.read(parsed.inputFile);
+                    if (inputData === null) {
+                        this.print('Error: cannot open input file', 'error');
+                        this.showPrompt();
+                        return;
+                    }
+                }
+
+                // Handle piped commands
+                for (let i = 0; i < parsed.commands.length; i++) {
+                    const { cmd, args } = parsed.commands[i];
+                    
+                    // Check if command exists
+                    if (!this.commands[cmd]) {
+                        this.print(`Unable to access`, 'error');
+                        this.showPrompt();
+                        return;
+                    }
+
+                    // Execute command
+                    const result = this.commands[cmd](args, i === 0 ? inputData : output);
+                    
+                    if (result.error) {
+                        this.print(result.error, 'error');
+                        this.showPrompt();
+                        return;
+                    }
+                    
+                    output = result.output;
+                }
+
+                // Handle output
+                if (parsed.outputFile) {
+                    this.fs.delete(parsed.outputFile);
+                    this.fs.create(parsed.outputFile);
+                    this.fs.write(parsed.outputFile, output);
+                } else if (output) {
+                    // Print output line by line
+                    output.split('\n').forEach(line => {
+                        if (line) this.print(line);
+                    });
+                }
+
+                this.showPrompt();
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // ============ Commands ============
+
+            cmdHelp(args, stdin) {
+                const help = `
+Available Commands:
+  ls [dir]        - List directory contents
+  cat <file>      - Display file contents
+  echo [text]     - Display text
+  touch <file>    - Create empty file
+  rm <file>       - Remove file
+  wc [file]       - Count lines, words, bytes
+  date            - Display current date/time
+  hello           - Display greeting
+  clear           - Clear terminal
+  exit            - Exit shell
+  help            - Show this help
+
+Operators:
+  |               - Pipe output to next command
+  < file          - Read input from file
+  > file          - Write output to file
+`;
+                return { output: help.trim(), error: null };
+            }
+
+            cmdLs(args, stdin) {
+                const path = args[0] || '/';
+                const entries = this.fs.list(path);
+                
+                if (entries.length === 0 && path !== '/') {
+                    return { output: '', error: 'ls: open failed' };
+                }
+
+                const output = entries.map(e => {
+                    if (e.type === 'dir') {
+                        return `<span class="dir-entry">${e.name}/</span>`;
+                    } else if (e.type === 'device') {
+                        return `<span class="info">${e.name}</span>`;
+                    }
+                    return `<span class="file-entry">${e.name}</span>`;
+                }).join('\n');
+
+                // Use HTML for colored output
+                setTimeout(() => {
+                    if (output) {
+                        output.split('\n').forEach(line => {
+                            this.printHtml(line);
+                        });
+                    }
+                }, 0);
+
+                return { output: entries.map(e => e.name).join('\n'), error: null };
+            }
+
+            cmdCat(args, stdin) {
+                if (args.length === 0) {
+                    // If no file, use stdin
+                    if (stdin) {
+                        return { output: stdin, error: null };
+                    }
+                    return { output: '', error: 'No file entered' };
+                }
+
+                const content = this.fs.read(args[0]);
+                if (content === null) {
+                    return { output: '', error: 'Fail to open the file' };
+                }
+                return { output: content, error: null };
+            }
+
+            cmdEcho(args, stdin) {
+                return { output: args.join(' '), error: null };
+            }
+
+            cmdTouch(args, stdin) {
+                if (args.length === 0) {
+                    return { output: '', error: 'Specify the file you want to create' };
+                }
+
+                for (const file of args) {
+                    this.fs.create(file);
+                }
+                return { output: '', error: null };
+            }
+
+            cmdRm(args, stdin) {
+                if (args.length === 0) {
+                    return { output: '', error: 'Specify the file you want to delete' };
+                }
+
+                for (const file of args) {
+                    if (!this.fs.delete(file)) {
+                        return { output: '', error: 'fail to delete file' };
+                    }
+                }
+                return { output: '', error: null };
+            }
+
+            cmdWc(args, stdin) {
+                let content = '';
+                
+                if (args.length > 0) {
+                    content = this.fs.read(args[0]);
+                    if (content === null) {
+                        return { output: '', error: 'wc: cannot open file' };
+                    }
+                } else if (stdin) {
+                    content = stdin;
+                } else {
+                    return { output: '0\t0\t0', error: null };
+                }
+
+                const bytes = content.length;
+                const lines = (content.match(/\n/g) || []).length;
+                const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+                return { output: `${lines}\t${words}\t${bytes}`, error: null };
+            }
+
+            cmdDate(args, stdin) {
+                const now = new Date();
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                
+                const day = String(now.getUTCDate()).padStart(2, '0');
+                const month = months[now.getUTCMonth()];
+                const year = now.getUTCFullYear();
+                const hours = String(now.getUTCHours()).padStart(2, '0');
+                const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+
+                return { output: `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`, error: null };
+            }
+
+            cmdHello(args, stdin) {
+                return { output: 'Hello, World!', error: null };
+            }
+
+            cmdClear(args, stdin) {
+                this.outputEl.innerHTML = '';
+                return { output: '', error: null };
+            }
+
+            cmdExit(args, stdin) {
+                this.print('Goodbye. Your outie thanks you for your service.', 'system');
+                // Disable input
+                setTimeout(() => {
+                    if (this.inputEl) {
+                        this.inputEl.disabled = true;
+                        this.inputEl.placeholder = '[Session Ended]';
+                    }
+                }, 100);
+                return { output: '', error: null };
+            }
+        }
+
+        // ============ Initialize ============
+
+        // Shared filesystem between terminals
+        const sharedFS = new FileSystem();
+
+        // Create shells
+        const shells = {
+            1: new Shell(1, sharedFS),
+            2: new Shell(2, sharedFS)
+        };
+
+        // Set first terminal as active
+        setTimeout(() => {
+            shells[1].focus();
+        }, 500);
+
+        // Update clock
+        function updateClock() {
+            const now = new Date();
+            const time = now.toTimeString().split(' ')[0];
+            document.getElementById('clock').textContent = time;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // Handle global clicks to focus terminals
+        document.querySelectorAll('.terminal-body').forEach((body, index) => {
+            body.addEventListener('click', () => {
+                shells[index + 1].focus();
+            });
+        });
+    </script>
+</body>
+</html>

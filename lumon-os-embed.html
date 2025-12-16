@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>mikalxu.com</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link href="index.css" rel="stylesheet" type="text/css" spa-preserve/>
+    <style>
+        .page-title {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 1rem;
+        }
+        .embedded-game-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+        }
+        .embedded-game {
+            width: 80%;
+            height: 100%;
+            border: 2px solid var(--gray);
+        }
+        #quartz-body {
+            grid-template-columns: 1fr !important;
+        }
+        .center {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+    </style>
+</head>
+<body data-slug="lumon-os-embed">
+    <video autoplay muted loop playsinline class="smiski-running"><source src="static/running.webm" type="video/webm" width="100px" height="auto%"/></video>
+    <video autoplay muted loop playsinline class="smiski-idle"><source src="static/idle.webm" type="video/webm" width="100px" height="auto%"/></video>
+    <video autoplay muted loop playsinline class="smiski-running"><source src="static/running.mov" type="video/quicktime" width="100px" height="auto%"/></video>
+    <video autoplay muted loop playsinline class="smiski-idle"><source src="static/idle.mov" type="video/quicktime" width="100px" height="auto%"/></video>
+    <div id="background"></div>
+    <div id="quartz-root" class="page">
+        <div id="quartz-body">
+            <div class="center">
+                <div class="page-header">
+                    <header>
+                        <div><a class="text-custom-font header-logo-link" href="index.html">mikal xu :)</a></div>
+                        <div class="spacer"></div>
+                        <ul class="header-list-container">
+                            <li class="header-list-item"><a href="notes.html">notes</a></li>
+                            <li class="header-list-item"><a href="blog.html">blog</a></li>
+                            <li class="header-list-item"><a href="lumon-os-embed.html">LUMON OS (click here!)</a></li>
+                        </ul>
+                    </header>
+                </div>
+                <div class="page-title">LUMON</div>
+                <div class="embedded-game-container">
+                    <iframe class="embedded-game" src="lumon-os.html"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

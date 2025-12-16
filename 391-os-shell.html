@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>391 OS - Dual Shell</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --light: #faf8f8;
+            --lightgray: #e5e5e5;
+            --gray: #b8b8b8;
+            --darkgray: #4e4e4e;
+            --dark: #2b2b2b;
+            --secondary: #a4ce64;
+            --tertiary: #a4ce64;
+            --highlight: rgba(143, 159, 169, 0.1);
+            
+            /* Terminal colors (keep dark) */
+            --term-bg: #0a0e14;
+            --term-panel: #111820;
+            --term-border: #1e2a38;
+            --term-blue: #00d4ff;
+            --term-green: #00ff88;
+            --term-amber: #ffaa00;
+            --term-text: #c5d0de;
+            --term-dim: #5c6a7a;
+            --term-error: #ff4757;
+            --term-glow: rgba(0, 212, 255, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--light);
+            color: var(--dark);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--light);
+            border-bottom: 1px solid var(--lightgray);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--secondary);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--light);
+            font-size: 14px;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .logo-text span {
+            color: var(--secondary);
+        }
+
+        .logo-subtitle {
+            font-size: 12px;
+            color: var(--darkgray);
+            margin-left: 12px;
+            padding-left: 12px;
+            border-left: 1px solid var(--lightgray);
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            color: var(--darkgray);
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--secondary);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Terminal Area */
+        .terminals {
+            display: flex;
+            flex: 1;
+            gap: 16px;
+            padding: 16px 32px;
+            background: var(--light);
+        }
+
+        .terminal-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--term-panel);
+            border: 1px solid var(--term-border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .terminal-wrapper.active {
+            box-shadow: 
+                0 4px 24px rgba(0, 0, 0, 0.2),
+                0 0 0 2px var(--secondary);
+        }
+
+        .terminal-header {
+            background: linear-gradient(180deg, #1a2433 0%, var(--term-panel) 100%);
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--term-border);
+        }
+
+        .terminal-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--term-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-title::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            background: var(--term-green);
+            border-radius: 2px;
+        }
+
+        .terminal-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .terminal-btn.close { background: #ff5f56; }
+        .terminal-btn.minimize { background: #ffbd2e; }
+        .terminal-btn.maximize { background: #27ca40; }
+
+        .terminal-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            background: var(--term-panel);
+        }
+
+        .terminal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-body::-webkit-scrollbar-track {
+            background: var(--term-bg);
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: var(--term-border);
+            border-radius: 4px;
+        }
+
+        .output-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--term-text);
+        }
+
+        .output-line.system { color: var(--term-blue); }
+        .output-line.error { color: var(--term-error); }
+        .output-line.success { color: var(--term-green); }
+        .output-line.info { color: var(--term-amber); }
+        .output-line.dim { color: var(--term-dim); }
+        .output-line.game { color: #e0e0e0; }
+
+        .input-line {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .prompt {
+            color: var(--term-green);
+            font-weight: 600;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+
+        .prompt.game-prompt {
+            color: var(--term-amber);
+        }
+
+        .command-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--term-text);
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+            caret-color: var(--term-blue);
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: var(--term-blue);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--light);
+            border-top: 1px solid var(--lightgray);
+            padding: 12px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--darkgray);
+        }
+
+        .help-hint {
+            display: flex;
+            gap: 16px;
+        }
+
+        .help-hint kbd {
+            background: var(--lightgray);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--dark);
+        }
+
+        .footer a {
+            color: var(--secondary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover {
+            color: var(--dark);
+        }
+
+        .footer a svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* File entry colors */
+        .file-entry { color: var(--term-amber); }
+        .dir-entry { color: var(--term-blue); }
+        .exec-entry { color: var(--term-green); }
+        .device-entry { color: #ff79c6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">391</div>
+                <div class="logo-text">391 <span>OS</span></div>
+                <div class="logo-subtitle">made by group 65: michael xu and zhenwu</div>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-dot"></div>
+                    <span>SYSTEM ACTIVE</span>
+                </div>
+                <div class="status-item" id="clock">--:--:--</div>
+            </div>
+        </header>
+
+        <main class="terminals">
+            <div class="terminal-wrapper" id="terminal-1">
+                <div class="terminal-header">
+                    <div class="terminal-title">TERMINAL 1</div>
+                    <div class="terminal-actions">
+                        <button class="terminal-btn minimize"></button>
+                        <button class="terminal-btn maximize"></button>
+                        <button class="terminal-btn close"></button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="output-1"></div>
+            </div>
+            <div class="terminal-wrapper" id="terminal-2">
+                <div class="terminal-header">
+                    <div class="terminal-title">TERMINAL 2</div>
+                    <div class="terminal-actions">
+                        <button class="terminal-btn minimize"></button>
+                        <button class="terminal-btn maximize"></button>
+                        <button class="terminal-btn close"></button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="output-2"></div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <div class="help-hint">
+                <span><kbd>Tab</kbd> Switch terminal</span>
+                <span><kbd>help</kbd> List commands</span>
+                <span><kbd>clear</kbd> Clear screen</span>
+            </div>
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                View on GitHub
+            </a>
+        </footer>
+    </div>
+
+    <script>
+        // ============================================
+        // 391 OS - Dual Shell with Games
+        // ============================================
+
+        class FileSystem {
+            constructor() {
+                this.files = new Map();
+                this.initDefaultFiles();
+            }
+
+            initDefaultFiles() {
+                const programs = ['cat', 'date', 'echo', 'hello', 'ls', 'rm', 'shell', 'touch', 'wc', 'xargs'];
+                programs.forEach(p => {
+                    this.files.set(`c/${p}`, { type: 'exec', content: `[ELF Executable: ${p}]` });
+                });
+
+                this.files.set('games/rogue', { type: 'exec', content: '[ELF Executable: rogue]' });
+                this.files.set('games/trek', { type: 'exec', content: '[ELF Executable: trek]' });
+                this.files.set('games/zork', { type: 'exec', content: '[ELF Executable: zork]' });
+
+                this.files.set('dev/uart1', { type: 'device', content: '[DEVICE: UART Console]' });
+                this.files.set('dev/rtc0', { type: 'device', content: '[DEVICE: Real Time Clock]' });
+            }
+
+            exists(path) { return this.files.has(this.normalizePath(path)); }
+            read(path) { const f = this.files.get(this.normalizePath(path)); return f ? f.content : null; }
+            write(path, content) { this.files.set(this.normalizePath(path), { type: 'file', content }); }
+            delete(path) { return this.files.delete(this.normalizePath(path)); }
+            create(path) { const n = this.normalizePath(path); if (!this.files.has(n)) { this.files.set(n, { type: 'file', content: '' }); return true; } return false; }
+            getType(path) { const f = this.files.get(this.normalizePath(path)); return f ? f.type : null; }
+
+            list(dir = '/') {
+                if (dir === '/' || dir === '') return [{ name: 'c', type: 'dir' }, { name: 'dev', type: 'dir' }, { name: 'games', type: 'dir' }];
+                const normalizedDir = dir.replace(/^\/+/, '').replace(/\/+$/, '');
+                const results = [], seen = new Set();
+                for (const [path, fileData] of this.files.entries()) {
+                    if (path.startsWith(normalizedDir + '/')) {
+                        const rest = path.slice(normalizedDir.length + 1);
+                        const name = rest.split('/')[0];
+                        if (!seen.has(name) && name) { seen.add(name); results.push({ name, type: rest.includes('/') ? 'dir' : fileData.type }); }
+                    }
+                }
+                return results.sort((a, b) => a.name.localeCompare(b.name));
+            }
+
+            normalizePath(path) { return path.replace(/^\/+/, '').replace(/\/+$/, ''); }
+        }
+
+        // ZORK
+        class ZorkGame {
+            constructor(shell) {
+                this.shell = shell;
+                this.inventory = []; this.score = 0; this.moves = 0;
+                this.currentRoom = 'west_of_house';
+                this.mailboxOpen = false; this.leafletTaken = false; this.trollDead = false;
+                this.rooms = {
+                    'west_of_house': { name: 'West of House', desc: 'You are standing in an open field west of a white house, with a boarded front door. There is a small mailbox here.', exits: { north: 'north_of_house', south: 'south_of_house', east: 'behind_house' } },
+                    'north_of_house': { name: 'North of House', desc: 'You are facing the north side of a white house. There is no door here, and all the windows are boarded up.', exits: { west: 'west_of_house', east: 'behind_house', north: 'forest_path' } },
+                    'south_of_house': { name: 'South of House', desc: 'You are facing the south side of a white house. There is no door here, and all the windows are boarded up.', exits: { west: 'west_of_house', east: 'behind_house' } },
+                    'behind_house': { name: 'Behind House', desc: 'You are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.', exits: { north: 'north_of_house', south: 'south_of_house', west: 'west_of_house', east: 'clearing', enter: 'kitchen' } },
+                    'kitchen': { name: 'Kitchen', desc: 'You are in the kitchen of the white house. A table seems to have been used recently for the preparation of food.', exits: { west: 'living_room', up: 'attic', out: 'behind_house' }, items: ['knife', 'garlic'] },
+                    'living_room': { name: 'Living Room', desc: 'You are in the living room. There is a doorway to the east.', exits: { east: 'kitchen' }, items: ['lamp', 'sword'] },
+                    'attic': { name: 'Attic', desc: 'This is the attic. The only exit is a stairway leading down.', exits: { down: 'kitchen' }, items: ['rope'] },
+                    'forest_path': { name: 'Forest Path', desc: 'This is a path winding through a dimly lit forest.', exits: { south: 'north_of_house', north: 'clearing', up: 'tree' } },
+                    'clearing': { name: 'Clearing', desc: 'You are in a clearing, with a forest surrounding you on all sides. There is an open grating, descending into darkness.', exits: { south: 'forest_path', west: 'behind_house', down: 'grating' } },
+                    'tree': { name: 'Up a Tree', desc: 'You are about 10 feet above the ground nestled among some large branches. There is a jewel-encrusted egg here!', exits: { down: 'forest_path' }, items: ['egg'] },
+                    'grating': { name: 'Grating Room', desc: 'You are in a small room near the grating. A troll stands here, blocking your way!', exits: { up: 'clearing', north: 'troll_room' } },
+                    'troll_room': { name: 'Troll Room', desc: 'This is a small treasure room. Gold coins litter the floor!', exits: { south: 'grating' }, items: ['coins'] }
+                };
+            }
+            start() { this.shell.print('ZORK I: The Great Underground Empire', 'system'); this.shell.print('Copyright (c) 1981, 1982, 1983 Infocom, Inc.', 'dim'); this.shell.print(''); this.look(); }
+            processCommand(input) {
+                this.moves++; const words = input.toLowerCase().trim().split(/\s+/); const cmd = words[0]; const arg = words.slice(1).join(' ');
+                switch(cmd) {
+                    case 'look': case 'l': return this.look();
+                    case 'north': case 'n': return this.move('north');
+                    case 'south': case 's': return this.move('south');
+                    case 'east': case 'e': return this.move('east');
+                    case 'west': case 'w': return this.move('west');
+                    case 'up': case 'u': return this.move('up');
+                    case 'down': case 'd': return this.move('down');
+                    case 'enter': case 'in': return this.move('enter');
+                    case 'out': return this.move('out');
+                    case 'inventory': case 'i': return this.showInventory();
+                    case 'take': case 'get': return this.take(arg);
+                    case 'drop': return this.drop(arg);
+                    case 'open': return this.open(arg);
+                    case 'read': return this.read(arg);
+                    case 'examine': case 'x': return this.examine(arg);
+                    case 'attack': case 'kill': return this.attack(arg);
+                    case 'score': return this.showScore();
+                    case 'quit': case 'q': return { quit: true };
+                    case 'help': return this.help();
+                    default: return this.shell.print("I don't understand that.", 'game');
+                }
+            }
+            look() { const room = this.rooms[this.currentRoom]; this.shell.print(room.name, 'info'); this.shell.print(room.desc, 'game'); if (room.items?.length) room.items.forEach(item => this.shell.print(`There is a ${item} here.`, 'game')); if (this.currentRoom === 'west_of_house' && this.mailboxOpen && !this.leafletTaken) this.shell.print('The mailbox contains a leaflet.', 'game'); }
+            move(dir) { const room = this.rooms[this.currentRoom]; if (room.exits[dir]) { if (this.currentRoom === 'grating' && dir === 'north' && !this.trollDead) { this.shell.print('The troll blocks your way!', 'error'); return; } this.currentRoom = room.exits[dir]; this.look(); } else this.shell.print("You can't go that way.", 'game'); }
+            showInventory() { if (!this.inventory.length) this.shell.print("You are empty-handed.", 'game'); else { this.shell.print("You are carrying:", 'game'); this.inventory.forEach(item => this.shell.print(`  A ${item}`, 'game')); } }
+            take(item) { if (!item) { this.shell.print("Take what?", 'game'); return; } const room = this.rooms[this.currentRoom]; if (this.currentRoom === 'west_of_house' && item === 'leaflet' && this.mailboxOpen && !this.leafletTaken) { this.leafletTaken = true; this.inventory.push('leaflet'); this.shell.print("Taken.", 'success'); return; } if (room.items?.includes(item)) { room.items = room.items.filter(i => i !== item); this.inventory.push(item); this.score += 10; this.shell.print("Taken.", 'success'); } else this.shell.print("You can't see any such thing.", 'game'); }
+            drop(item) { if (!item) { this.shell.print("Drop what?", 'game'); return; } if (this.inventory.includes(item)) { this.inventory = this.inventory.filter(i => i !== item); const room = this.rooms[this.currentRoom]; if (!room.items) room.items = []; room.items.push(item); this.shell.print("Dropped.", 'game'); } else this.shell.print("You're not carrying that!", 'game'); }
+            open(thing) { if (thing === 'mailbox' && this.currentRoom === 'west_of_house') { this.mailboxOpen = true; this.shell.print("Opening the small mailbox reveals a leaflet.", 'game'); } else this.shell.print("You can't open that.", 'game'); }
+            read(thing) { if (thing === 'leaflet' && this.inventory.includes('leaflet')) this.shell.print('"WELCOME TO ZORK! ZORK is a game of adventure, danger, and low cunning."', 'game'); else this.shell.print("There's nothing to read.", 'game'); }
+            examine(thing) { if (this.inventory.includes(thing)) { const descs = { 'lamp': 'A battery-powered brass lantern.', 'sword': 'An elvish sword of great antiquity.', 'egg': 'A beautiful jewel-encrusted egg!', 'leaflet': 'A small leaflet.', 'rope': 'A large coil of sturdy rope.', 'knife': 'A nasty-looking knife.', 'coins': 'A pile of gold coins!' }; this.shell.print(descs[thing] || `You see nothing special about the ${thing}.`, 'game'); } else this.shell.print("You can't see that here.", 'game'); }
+            attack(target) { if (this.currentRoom === 'grating' && (target === 'troll' || !target)) { if (this.inventory.includes('sword')) { this.trollDead = true; this.score += 25; this.shell.print("You swing the elvish sword! The troll collapses!", 'success'); } else this.shell.print("Attacking the troll with bare hands is suicide!", 'error'); } else this.shell.print("There's nothing here to attack.", 'game'); }
+            showScore() { this.shell.print(`Your score is ${this.score} (total of 350 points), in ${this.moves} moves.`, 'info'); }
+            help() { this.shell.print('Commands: n/s/e/w/u/d, look, inventory, take, drop, open, read, examine, attack, score, quit', 'info'); }
+        }
+
+        // ROGUE
+        class RogueGame {
+            constructor(shell) { this.shell = shell; this.level = 1; this.hp = 12; this.maxHp = 12; this.gold = 0; this.exp = 0; this.playerX = 5; this.playerY = 3; this.map = []; this.monsters = []; this.items = []; this.messages = []; }
+            start() { this.shell.print('ROGUE: Exploring the Dungeons of Doom', 'system'); this.shell.print('', ''); this.generateLevel(); this.draw(); this.shell.print('', ''); this.shell.print('Commands: hjkl=move, .=wait, >=descend, q=quit', 'dim'); }
+            generateLevel() { this.map = []; for (let y = 0; y < 10; y++) { let row = ''; for (let x = 0; x < 40; x++) { if (y === 0 || y === 9) row += '-'; else if (x === 0 || x === 39) row += '|'; else row += '.'; } this.map.push(row); } this.addRoom(3, 2, 10, 5); this.addRoom(20, 1, 12, 6); for (let x = 13; x < 20; x++) this.setTile(x, 4, '#'); this.monsters = [{ x: 25, y: 3, char: 'K', name: 'kobold', hp: 3 }, { x: 15, y: 6, char: 'R', name: 'rat', hp: 2 }]; this.items = [{ x: 8, y: 3, char: '*', name: 'gold', value: 15 }, { x: 28, y: 4, char: '!', name: 'potion' }, { x: 12, y: 6, char: '>', name: 'stairs' }]; this.playerX = 5; this.playerY = 3; }
+            addRoom(rx, ry, rw, rh) { for (let y = ry; y < ry + rh && y < 10; y++) for (let x = rx; x < rx + rw && x < 40; x++) { if (y === ry || y === ry + rh - 1) this.setTile(x, y, '-'); else if (x === rx || x === rx + rw - 1) this.setTile(x, y, '|'); else this.setTile(x, y, '.'); } }
+            setTile(x, y, char) { if (y >= 0 && y < this.map.length && x >= 0 && x < this.map[y].length) this.map[y] = this.map[y].substring(0, x) + char + this.map[y].substring(x + 1); }
+            getTile(x, y) { return (y >= 0 && y < this.map.length && x >= 0 && x < this.map[y].length) ? this.map[y][x] : '#'; }
+            draw() { this.shell.print(`Level:${this.level}  Gold:${this.gold}  Hp:${this.hp}(${this.maxHp})  Exp:${this.exp}`, 'info'); for (let y = 0; y < this.map.length; y++) { let line = ''; for (let x = 0; x < this.map[y].length; x++) { if (x === this.playerX && y === this.playerY) line += '@'; else { let m = this.monsters.find(m => m.x === x && m.y === y); let i = this.items.find(i => i.x === x && i.y === y); if (m) line += m.char; else if (i) line += i.char; else line += this.map[y][x]; } } this.shell.print(line, 'game'); } this.messages.forEach(msg => this.shell.print(msg, 'info')); this.messages = []; }
+            processCommand(input) { const cmd = input.toLowerCase().trim(); let moved = false, dx = 0, dy = 0; switch(cmd) { case 'h': dx = -1; break; case 'j': dy = 1; break; case 'k': dy = -1; break; case 'l': dx = 1; break; case '.': moved = true; break; case 'q': case 'quit': return { quit: true }; case '>': let stairs = this.items.find(i => i.x === this.playerX && i.y === this.playerY && i.name === 'stairs'); if (stairs) { this.level++; this.messages.push(`You descend to level ${this.level}...`); this.generateLevel(); moved = true; } else this.messages.push("There are no stairs here."); break; default: this.shell.print('Unknown command. hjkl=move, .=wait, >=descend, q=quit', 'dim'); return; } if (dx !== 0 || dy !== 0) { const newX = this.playerX + dx, newY = this.playerY + dy; const tile = this.getTile(newX, newY); const monster = this.monsters.find(m => m.x === newX && m.y === newY); if (monster) { const damage = Math.floor(Math.random() * 4) + 1; monster.hp -= damage; this.messages.push(`You hit the ${monster.name} for ${damage} damage!`); if (monster.hp <= 0) { this.monsters = this.monsters.filter(m => m !== monster); this.exp += 5; this.messages.push(`You killed the ${monster.name}!`); } moved = true; } else if (tile === '.' || tile === '#') { this.playerX = newX; this.playerY = newY; moved = true; const item = this.items.find(i => i.x === newX && i.y === newY); if (item?.name === 'gold') { this.gold += item.value; this.items = this.items.filter(i => i !== item); this.messages.push(`You found ${item.value} gold pieces!`); } else if (item?.name === 'potion') { this.hp = Math.min(this.hp + 5, this.maxHp); this.items = this.items.filter(i => i !== item); this.messages.push('You drink the potion. You feel better!'); } } else this.messages.push("You can't move there."); } if (moved) { this.monsters.forEach(m => { if (Math.abs(m.x - this.playerX) <= 1 && Math.abs(m.y - this.playerY) <= 1) { const damage = Math.floor(Math.random() * 3) + 1; this.hp -= damage; this.messages.push(`The ${m.name} hits you for ${damage} damage!`); } }); if (this.hp <= 0) { this.shell.print('You have died...', 'error'); this.shell.print(`Final score: ${this.gold + this.exp * 10} points`, 'info'); return { quit: true }; } this.draw(); } }
+        }
+
+        // TREK
+        class TrekGame {
+            constructor(shell) { this.shell = shell; this.energy = 3000; this.shields = 0; this.torpedoes = 10; this.quadrantX = Math.floor(Math.random() * 8); this.quadrantY = Math.floor(Math.random() * 8); this.sectorX = Math.floor(Math.random() * 8); this.sectorY = Math.floor(Math.random() * 8); this.klingons = 15; this.stardate = 2100; this.quadrant = []; this.klingonsHere = 0; }
+            start() { this.shell.print('                   STAR TREK', 'system'); this.shell.print('', ''); this.shell.print('Your mission: Destroy ' + this.klingons + ' Klingon warships', 'info'); this.shell.print('', ''); this.generateQuadrant(); this.shortRangeScan(); this.shell.print('Commands: nav X Y, srs, lrs, pha N, tor, shi N, quit', 'dim'); }
+            generateQuadrant() { this.quadrant = []; for (let i = 0; i < 8; i++) this.quadrant.push('........'.split('')); this.quadrant[this.sectorY][this.sectorX] = 'E'; for (let i = 0; i < 5; i++) { let x, y; do { x = Math.floor(Math.random() * 8); y = Math.floor(Math.random() * 8); } while (this.quadrant[y][x] !== '.'); this.quadrant[y][x] = '*'; } this.klingonsHere = Math.random() < 0.3 ? Math.floor(Math.random() * 3) + 1 : 0; for (let i = 0; i < this.klingonsHere; i++) { let x, y; do { x = Math.floor(Math.random() * 8); y = Math.floor(Math.random() * 8); } while (this.quadrant[y][x] !== '.'); this.quadrant[y][x] = 'K'; } if (Math.random() < 0.2) { let x, y; do { x = Math.floor(Math.random() * 8); y = Math.floor(Math.random() * 8); } while (this.quadrant[y][x] !== '.'); this.quadrant[y][x] = 'B'; } }
+            shortRangeScan() { this.shell.print('SHORT RANGE SCAN for Quadrant ' + (this.quadrantX+1) + ',' + (this.quadrantY+1), 'info'); this.shell.print('  1 2 3 4 5 6 7 8', 'dim'); for (let y = 0; y < 8; y++) { let line = (y+1) + ' '; for (let x = 0; x < 8; x++) line += this.quadrant[y][x] + ' '; this.shell.print(line, 'game'); } this.shell.print(`Energy: ${this.energy}  Shields: ${this.shields}  Torpedoes: ${this.torpedoes}`, 'info'); if (this.klingonsHere > 0) this.shell.print(`*** ${this.klingonsHere} KLINGON(S) DETECTED ***`, 'error'); }
+            processCommand(input) { const parts = input.toLowerCase().trim().split(/\s+/); const cmd = parts[0]; switch(cmd) { case 'nav': return this.navigate(parts[1], parts[2]); case 'srs': this.shortRangeScan(); break; case 'lrs': this.shell.print('LONG RANGE SCAN', 'info'); break; case 'pha': return this.firePhasers(parseInt(parts[1]) || 100); case 'tor': return this.fireTorpedo(); case 'shi': const amt = parseInt(parts[1]) || 500; if (amt > this.energy) { this.shell.print('Insufficient energy!', 'error'); return; } this.energy -= amt; this.shields += amt; this.shell.print(`Shields now at ${this.shields}`, 'info'); break; case 'quit': case 'q': return { quit: true }; default: this.shell.print('Commands: nav X Y, srs, lrs, pha N, tor, shi N, quit', 'dim'); } }
+            navigate(x, y) { x = parseInt(x); y = parseInt(y); if (isNaN(x) || isNaN(y) || x < 1 || x > 8 || y < 1 || y > 8) { this.shell.print('Invalid coordinates (1-8)', 'error'); return; } x--; y--; if (this.quadrant[y][x] !== '.') { this.shell.print('Sector occupied!', 'error'); return; } const dist = Math.abs(x - this.sectorX) + Math.abs(y - this.sectorY); if (this.energy < dist * 10) { this.shell.print('Insufficient energy!', 'error'); return; } this.quadrant[this.sectorY][this.sectorX] = '.'; this.sectorX = x; this.sectorY = y; this.quadrant[this.sectorY][this.sectorX] = 'E'; this.energy -= dist * 10; this.shell.print(`Moved to sector ${x+1},${y+1}`, 'info'); this.klingonAttack(); this.shortRangeScan(); }
+            firePhasers(energy) { if (this.klingonsHere === 0) { this.shell.print('No Klingons in this quadrant!', 'error'); return; } if (energy > this.energy) { this.shell.print('Insufficient energy!', 'error'); return; } this.energy -= energy; const damage = Math.floor(energy / this.klingonsHere * (0.5 + Math.random() * 0.5)); this.shell.print(`Phasers fire! ${damage} damage per Klingon.`, 'success'); if (damage > 200) { for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (this.quadrant[y][x] === 'K') { this.quadrant[y][x] = '.'; this.klingonsHere--; this.klingons--; this.shell.print('*** KLINGON DESTROYED ***', 'success'); if (this.klingons === 0) { this.shell.print('CONGRATULATIONS! All Klingons destroyed!', 'success'); return { quit: true }; } this.klingonAttack(); return; } } else this.shell.print('Klingon damaged but still operational!', 'info'); this.klingonAttack(); }
+            fireTorpedo() { if (this.torpedoes <= 0) { this.shell.print('No torpedoes!', 'error'); return; } this.torpedoes--; this.shell.print('Torpedo away!', 'info'); if (this.klingonsHere > 0 && Math.random() > 0.3) { for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (this.quadrant[y][x] === 'K') { this.quadrant[y][x] = '.'; this.klingonsHere--; this.klingons--; this.shell.print('*** KLINGON DESTROYED ***', 'success'); if (this.klingons === 0) { this.shell.print('CONGRATULATIONS! All Klingons destroyed!', 'success'); return { quit: true }; } return; } } else this.shell.print('Torpedo missed!', 'error'); this.klingonAttack(); }
+            klingonAttack() { if (this.klingonsHere > 0) { const damage = this.klingonsHere * (Math.floor(Math.random() * 100) + 50); if (this.shields >= damage) { this.shields -= damage; this.shell.print(`Klingon attack! Shields absorb ${damage} damage.`, 'error'); } else { const hull = damage - this.shields; this.shields = 0; this.energy -= hull; this.shell.print(`Klingon attack! ${hull} damage to ship!`, 'error'); if (this.energy <= 0) { this.shell.print('*** ENTERPRISE DESTROYED ***', 'error'); return { quit: true }; } } } }
+        }
+
+        // Shell
+        class Shell {
+            constructor(terminalId, fs) { this.terminalId = terminalId; this.fs = fs; this.outputEl = document.getElementById(`output-${terminalId}`); this.history = []; this.historyIndex = -1; this.inputEl = null; this.activeGame = null; this.commands = { 'help': this.cmdHelp.bind(this), 'ls': this.cmdLs.bind(this), 'cat': this.cmdCat.bind(this), 'echo': this.cmdEcho.bind(this), 'touch': this.cmdTouch.bind(this), 'rm': this.cmdRm.bind(this), 'wc': this.cmdWc.bind(this), 'date': this.cmdDate.bind(this), 'hello': this.cmdHello.bind(this), 'clear': this.cmdClear.bind(this), 'exit': this.cmdExit.bind(this), 'rogue': this.cmdRogue.bind(this), 'trek': this.cmdTrek.bind(this), 'zork': this.cmdZork.bind(this), 'games/rogue': this.cmdRogue.bind(this), 'games/trek': this.cmdTrek.bind(this), 'games/zork': this.cmdZork.bind(this) }; this.init(); }
+            init() { this.print('Starting 391 Shell', 'system'); this.print(''); this.showPrompt(); }
+            print(text, className = '') { const line = document.createElement('div'); line.className = `output-line ${className}`; line.textContent = text; this.outputEl.appendChild(line); this.scrollToBottom(); }
+            scrollToBottom() { this.outputEl.scrollTop = this.outputEl.scrollHeight; }
+            showPrompt() { const inputLine = document.createElement('div'); inputLine.className = 'input-line'; const promptClass = this.activeGame ? 'prompt game-prompt' : 'prompt'; const promptText = this.activeGame ? '>' : '391 OS>'; inputLine.innerHTML = `<span class="${promptClass}">${promptText}</span><input type="text" class="command-input" autofocus><span class="cursor"></span>`; this.outputEl.appendChild(inputLine); this.inputEl = inputLine.querySelector('.command-input'); this.inputEl.addEventListener('keydown', this.handleKeyDown.bind(this)); this.inputEl.addEventListener('input', () => { inputLine.querySelector('.cursor').style.display = this.inputEl.value ? 'none' : 'inline-block'; }); this.inputEl.focus(); this.scrollToBottom(); }
+            handleKeyDown(e) { if (e.key === 'Enter') { e.preventDefault(); this.executeCommand(this.inputEl.value); } else if (e.key === 'ArrowUp') { e.preventDefault(); if (this.history.length && this.historyIndex > 0) this.inputEl.value = this.history[--this.historyIndex]; } else if (e.key === 'ArrowDown') { e.preventDefault(); if (this.historyIndex < this.history.length - 1) this.inputEl.value = this.history[++this.historyIndex]; else { this.historyIndex = this.history.length; this.inputEl.value = ''; } } else if (e.key === 'Tab') { e.preventDefault(); shells[this.terminalId === 1 ? 2 : 1].focus(); } }
+            focus() { if (this.inputEl) this.inputEl.focus(); document.querySelectorAll('.terminal-wrapper').forEach(el => el.classList.remove('active')); document.getElementById(`terminal-${this.terminalId}`).classList.add('active'); }
+            executeCommand(input) { const inputLine = this.inputEl.parentElement; const promptText = this.activeGame ? '>' : '391 OS>'; inputLine.innerHTML = `<span class="prompt">${promptText}</span><span>${this.escapeHtml(input)}</span>`; if (input.trim()) { this.history.push(input); this.historyIndex = this.history.length; } if (this.activeGame) { const result = this.activeGame.processCommand(input); if (result?.quit) { this.activeGame = null; this.print('Returning to shell...', 'dim'); } this.showPrompt(); return; } const parsed = this.parseCommand(input); if (!parsed.commands.length) { if (parsed.outputFile) { this.fs.delete(parsed.outputFile); this.fs.create(parsed.outputFile); } this.showPrompt(); return; } let output = '', inputData = ''; if (parsed.inputFile) { inputData = this.fs.read(parsed.inputFile); if (inputData === null) { this.print('Error: cannot open input file', 'error'); this.showPrompt(); return; } } for (let i = 0; i < parsed.commands.length; i++) { const { cmd, args } = parsed.commands[i]; if (!this.commands[cmd]) { this.print('Unable to access', 'error'); this.showPrompt(); return; } const result = this.commands[cmd](args, i === 0 ? inputData : output); if (result?.error) { this.print(result.error, 'error'); this.showPrompt(); return; } if (result?.game) return; output = result?.output || ''; } if (parsed.outputFile) { this.fs.delete(parsed.outputFile); this.fs.create(parsed.outputFile); this.fs.write(parsed.outputFile, output); } else if (output) output.split('\n').forEach(line => { if (line) this.print(line); }); this.showPrompt(); }
+            parseCommand(input) { const result = { commands: [], inputFile: null, outputFile: null }; if (!input.trim()) return result; const pipeIndex = input.indexOf('|'); let segments = pipeIndex >= 0 ? [input.slice(0, pipeIndex), input.slice(pipeIndex + 1)] : [input]; for (let i = 0; i < segments.length; i++) { let segment = segments[i].trim(); if (i === 0) { const inputMatch = segment.match(/<\s*(\S+)/); if (inputMatch) { result.inputFile = inputMatch[1]; segment = segment.replace(/<\s*\S+/, '').trim(); } } if (i === segments.length - 1) { const outputMatch = segment.match(/>\s*(\S+)/); if (outputMatch) { result.outputFile = outputMatch[1]; segment = segment.replace(/>\s*\S+/, '').trim(); } } const args = segment.split(/\s+/).filter(a => a.length > 0); if (args.length > 0) result.commands.push({ cmd: args[0], args: args.slice(1) }); } return result; }
+            escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+            cmdHelp() { return { output: `Commands: ls, cat, echo, touch, rm, wc, date, hello, clear, exit\nGames: rogue, trek, zork\nOperators: | (pipe), < (input), > (output)`, error: null }; }
+            cmdLs(args) { const path = args[0] || '/'; const entries = this.fs.list(path); if (!entries.length) return { output: '', error: 'ls: open failed' }; entries.forEach(e => { let className = 'file-entry', suffix = ''; if (e.type === 'dir') { className = 'dir-entry'; suffix = '/'; } else if (e.type === 'exec') { className = 'exec-entry'; suffix = '*'; } else if (e.type === 'device') className = 'device-entry'; const line = document.createElement('div'); line.className = `output-line ${className}`; line.textContent = e.name + suffix; this.outputEl.appendChild(line); }); this.scrollToBottom(); return { output: '', error: null }; }
+            cmdCat(args, stdin) { if (!args.length) return stdin ? { output: stdin, error: null } : { output: '', error: 'No file entered' }; const content = this.fs.read(args[0]); return content !== null ? { output: content, error: null } : { output: '', error: 'Fail to open the file' }; }
+            cmdEcho(args) { return { output: args.join(' '), error: null }; }
+            cmdTouch(args) { if (!args.length) return { output: '', error: 'Specify the file you want to create' }; args.forEach(file => this.fs.create(file)); return { output: '', error: null }; }
+            cmdRm(args) { if (!args.length) return { output: '', error: 'Specify the file you want to delete' }; for (const file of args) if (!this.fs.delete(file)) return { output: '', error: 'fail to delete file' }; return { output: '', error: null }; }
+            cmdWc(args, stdin) { let content = ''; if (args.length > 0) { content = this.fs.read(args[0]); if (content === null) return { output: '', error: 'wc: cannot open file' }; } else if (stdin) content = stdin; else return { output: '0\t0\t0', error: null }; const bytes = content.length; const lines = (content.match(/\n/g) || []).length; const words = content.trim().split(/\s+/).filter(w => w.length > 0).length; return { output: `${lines}\t${words}\t${bytes}`, error: null }; }
+            cmdDate() { const now = new Date(); const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; const day = String(now.getUTCDate()).padStart(2, '0'); const month = months[now.getUTCMonth()]; const year = now.getUTCFullYear(); const hours = String(now.getUTCHours()).padStart(2, '0'); const minutes = String(now.getUTCMinutes()).padStart(2, '0'); const seconds = String(now.getUTCSeconds()).padStart(2, '0'); return { output: `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`, error: null }; }
+            cmdHello() { return { output: 'Hello, world!', error: null }; }
+            cmdClear() { this.outputEl.innerHTML = ''; return { output: '', error: null }; }
+            cmdExit() { this.print('Goodbye!', 'system'); setTimeout(() => { if (this.inputEl) { this.inputEl.disabled = true; this.inputEl.placeholder = '[Session Ended]'; } }, 100); return { output: '', error: null }; }
+            cmdZork() { this.activeGame = new ZorkGame(this); this.activeGame.start(); this.showPrompt(); return { game: true }; }
+            cmdRogue() { this.activeGame = new RogueGame(this); this.activeGame.start(); this.showPrompt(); return { game: true }; }
+            cmdTrek() { this.activeGame = new TrekGame(this); this.activeGame.start(); this.showPrompt(); return { game: true }; }
+        }
+
+        const sharedFS = new FileSystem();
+        const shells = { 1: new Shell(1, sharedFS), 2: new Shell(2, sharedFS) };
+        setTimeout(() => shells[1].focus(), 500);
+        function updateClock() { document.getElementById('clock').textContent = new Date().toTimeString().split(' ')[0]; }
+        updateClock(); setInterval(updateClock, 1000);
+        document.querySelectorAll('.terminal-body').forEach((body, index) => { body.addEventListener('click', () => shells[index + 1].focus()); });
+    </script>
+</body>
+</html>
